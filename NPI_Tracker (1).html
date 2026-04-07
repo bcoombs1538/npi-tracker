@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NPI New Physician Tracker</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; color: #1a1a2e; min-height: 100vh; }
+
+  .topbar { background: #1B2A4A; color: #fff; padding: 14px 28px; display: flex; align-items: center; justify-content: space-between; }
+  .topbar h1 { font-size: 17px; font-weight: 600; letter-spacing: 0.02em; }
+  .topbar span { font-size: 12px; opacity: 0.6; }
+
+  .controls { background: #fff; border-bottom: 1px solid #e2e6ed; padding: 14px 28px; display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; }
+  .ctrl { display: flex; flex-direction: column; gap: 4px; }
+  .ctrl label { font-size: 11px; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: 0.04em; }
+  .ctrl input, .ctrl select { font-size: 13px; padding: 7px 11px; border: 1px solid #d0d7e3; border-radius: 6px; background: #fff; color: #1a1a2e; height: 34px; outline: none; }
+  .ctrl input:focus, .ctrl select:focus { border-color: #2E86C1; box-shadow: 0 0 0 2px rgba(46,134,193,0.12); }
+  .ctrl input[type=text] { width: 80px; text-transform: uppercase; font-weight: 700; color: #1B2A4A; }
+
+  .search-btn { padding: 0 22px; height: 34px; background: #1B2A4A; color: #fff; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; letter-spacing: 0.02em; align-self: flex-end; }
+  .search-btn:hover { background: #2E86C1; }
+  .search-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .export-btn { padding: 0 18px; height: 34px; background: #fff; color: #1B2A4A; border: 1px solid #1B2A4A; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; align-self: flex-end; }
+  .export-btn:hover { background: #f0f4fa; }
+  .export-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; padding: 16px 28px; }
+  .metric { background: #fff; border-radius: 8px; padding: 14px 16px; border: 1px solid #e8ecf2; }
+  .metric .mlabel { font-size: 11px; color: #888; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 6px; }
+  .metric .mval { font-size: 26px; font-weight: 700; color: #1B2A4A; line-height: 1; }
+  .metric .msub { font-size: 11px; color: #aaa; margin-top: 4px; }
+
+  .status { padding: 0 28px 8px; font-size: 12px; color: #888; min-height: 20px; }
+  .status.running { color: #2E86C1; font-weight: 500; }
+  .status.done { color: #27ae60; font-weight: 500; }
+  .status.error { color: #e74c3c; }
+
+  .table-wrap { margin: 0 28px 28px; background: #fff; border-radius: 8px; border: 1px solid #e2e6ed; overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead tr { background: #1B2A4A; }
+  th { color: #fff; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; padding: 10px 12px; text-align: left; white-space: nowrap; }
+  td { padding: 9px 12px; border-bottom: 1px solid #f0f2f5; vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #f8fafc; }
+
+  .badge { display: inline-block; padding: 3px 9px; border-radius: 99px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+  .badge-hot    { background: #D6EAF8; color: #1a5276; }
+  .badge-recent { background: #D5F5E3; color: #1e8449; }
+  .badge-6mo    { background: #FEF9E7; color: #9a7d0a; }
+  .badge-old    { background: #f5f5f5; color: #777; }
+
+  .empty { text-align: center; padding: 48px; color: #aaa; font-size: 14px; }
+  .progress { height: 3px; background: #e2e6ed; margin: 0 28px 4px; border-radius: 2px; overflow: hidden; }
+  .progress-bar { height: 100%; background: #2E86C1; width: 0%; transition: width 0.3s; border-radius: 2px; }
+
+  .spec-tag { display: inline-block; padding: 2px 7px; background: #eef2f8; border-radius: 4px; font-size: 11px; color: #445; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>NPI New Physician Tracker</h1>
+  <span>Live data from CMS NPPES Registry</span>
+</div>
+
+<div class="controls">
+  <div class="ctrl">
+    <label>State</label>
+    <input type="text" id="stateInput" value="UT" maxlength="2" placeholder="UT" />
+  </div>
+  <div class="ctrl">
+    <label>Days back</label>
+    <select id="daysSelect">
+      <option value="30">30 days</option>
+      <option value="90">90 days</option>
+      <option value="180" selected>180 days</option>
+      <option value="365">1 year</option>
+      <option value="730">2 years</option>
+    </select>
+  </div>
+  <div class="ctrl">
+    <label>Specialty</label>
+    <select id="specSelect">
+      <option value="all">All specialties</option>
+      <option value="Orthopaedic Surgery">Orthopedic Surgery</option>
+      <option value="Neurosurgery">Neurosurgery</option>
+      <option value="General Surgery">General Surgery</option>
+      <option value="Ophthalmology">Ophthalmology</option>
+      <option value="Otolaryngology">ENT</option>
+      <option value="Urology">Urology</option>
+      <option value="Gastroenterology">Gastroenterology</option>
+      <option value="Pain Medicine">Pain Management</option>
+      <option value="Plastic Surgery">Plastic Surgery</option>
+    </select>
+  </div>
+  <button class="search-btn" id="searchBtn" onclick="runSearch()">Search</button>
+  <button class="export-btn" id="exportBtn" onclick="exportCSV()" disabled>Export to Excel</button>
+</div>
+
+<div class="metrics">
+  <div class="metric"><div class="mlabel">Total found</div><div class="mval" id="mTotal">—</div><div class="msub" id="mSub">run a search</div></div>
+  <div class="metric"><div class="mlabel">New &lt;30 days</div><div class="mval" id="mNew">—</div><div class="msub">hot leads</div></div>
+  <div class="metric"><div class="mlabel">Recent 30–90d</div><div class="mval" id="mRecent">—</div><div class="msub">active outreach</div></div>
+  <div class="metric"><div class="mlabel">Specialties</div><div class="mval" id="mSpecs">—</div><div class="msub" id="mSpecSub">in results</div></div>
+</div>
+
+<div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+<div class="status" id="statusBar">Enter a state abbreviation and click Search.</div>
+
+<div class="table-wrap">
+  <table id="resultsTable">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Credential</th>
+        <th>Specialty</th>
+        <th>City</th>
+        <th>Zip</th>
+        <th>Phone</th>
+        <th>Enrolled Date</th>
+        <th>Days Since NPI</th>
+        <th>Status</th>
+        <th>NPI</th>
+      </tr>
+    </thead>
+    <tbody id="resultsBody">
+      <tr><td colspan="10" class="empty">No data yet — run a search above.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<script>
+const SPECIALTIES = [
+  {label: "Orthopedic Surgery", query: "Orthopaedic Surgery"},
+  {label: "Neurosurgery",       query: "Neurosurgery"},
+  {label: "General Surgery",    query: "General Surgery"},
+  {label: "Ophthalmology",      query: "Ophthalmology"},
+  {label: "ENT",                query: "Otolaryngology"},
+  {label: "Urology",            query: "Urology"},
+  {label: "Gastroenterology",   query: "Gastroenterology"},
+  {label: "Pain Management",    query: "Pain Medicine"},
+  {label: "Plastic Surgery",    query: "Plastic Surgery"},
+];
+
+let allData = [];
+
+function ageDays(dateStr) {
+  if (!dateStr) return 9999;
+  return Math.floor((Date.now() - new Date(dateStr)) / 86400000);
+}
+
+function badge(days) {
+  if (days <= 30)  return '<span class="badge badge-hot">New &lt;30d</span>';
+  if (days <= 90)  return '<span class="badge badge-recent">30–90d</span>';
+  if (days <= 180) return '<span class="badge badge-6mo">6 months</span>';
+  return '<span class="badge badge-old">&gt;6mo</span>';
+}
+
+function fmtDate(s) {
+  if (!s) return '—';
+  const d = new Date(s);
+  return d.toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
+}
+
+async function fetchOne(state, taxonomy) {
+  const url = `https://npiregistry.cms.hhs.gov/api/?version=2.1&enumeration_type=NPI-1&state=${encodeURIComponent(state)}&taxonomy_description=${encodeURIComponent(taxonomy)}&limit=200&skip=0`;
+  try {
+    const r = await fetch(url);
+    const j = await r.json();
+    return j.results || [];
+  } catch(e) { return []; }
+}
+
+function parseRecord(p, specLabel) {
+  const basic = p.basic || {};
+  const addrs = p.addresses || [];
+  const addr = addrs.find(a => a.address_purpose === 'LOCATION') || addrs[0] || {};
+  const enrolled = basic.enumeration_date || '';
+  const days = ageDays(enrolled);
+  return {
+    name: `${basic.first_name||''} ${basic.last_name||''}`.trim() || '—',
+    credential: basic.credential || '',
+    specialty: specLabel,
+    city: addr.city || '',
+    zip: (addr.postal_code||'').slice(0,5),
+    phone: addr.telephone_number || '',
+    enrolledDate: enrolled,
+    days: days,
+    npi: p.number || '',
+    gender: basic.gender || '',
+  };
+}
+
+async function runSearch() {
+  const state = document.getElementById('stateInput').value.trim().toUpperCase();
+  const days = parseInt(document.getElementById('daysSelect').value);
+  const specVal = document.getElementById('specSelect').value;
+
+  if (!state || state.length !== 2) {
+    document.getElementById('statusBar').textContent = 'Please enter a valid 2-letter state code.';
+    document.getElementById('statusBar').className = 'status error';
+    return;
+  }
+
+  const btn = document.getElementById('searchBtn');
+  btn.disabled = true;
+  btn.textContent = 'Searching…';
+  document.getElementById('exportBtn').disabled = true;
+  document.getElementById('resultsBody').innerHTML = '<tr><td colspan="10" class="empty">Loading…</td></tr>';
+  document.getElementById('progressBar').style.width = '0%';
+
+  const specsToFetch = specVal === 'all' ? SPECIALTIES : SPECIALTIES.filter(s => s.query === specVal);
+  const total = specsToFetch.length;
+  let done = 0;
+  const seen = new Set();
+  let raw = [];
+
+  for (const spec of specsToFetch) {
+    document.getElementById('statusBar').textContent = `Searching ${state} for ${spec.label}…`;
+    document.getElementById('statusBar').className = 'status running';
+    const results = await fetchOne(state, spec.query);
+    for (const r of results) {
+      if (!seen.has(r.number)) {
+        seen.add(r.number);
+        const rec = parseRecord(r, spec.label);
+        if (rec.days <= days) raw.push(rec);
+      }
+    }
+    done++;
+    document.getElementById('progressBar').style.width = `${Math.round(done/total*100)}%`;
+  }
+
+  raw.sort((a,b) => a.days - b.days);
+  allData = raw;
+
+  const newCount    = raw.filter(r => r.days <= 30).length;
+  const recentCount = raw.filter(r => r.days > 30 && r.days <= 90).length;
+  const specs       = new Set(raw.map(r => r.specialty)).size;
+
+  document.getElementById('mTotal').textContent  = raw.length;
+  document.getElementById('mSub').textContent    = `within ${days} days · ${state}`;
+  document.getElementById('mNew').textContent    = newCount;
+  document.getElementById('mRecent').textContent = recentCount;
+  document.getElementById('mSpecs').textContent  = specs;
+  document.getElementById('mSpecSub').textContent = 'specialties represented';
+
+  if (raw.length === 0) {
+    document.getElementById('resultsBody').innerHTML =
+      '<tr><td colspan="10" class="empty">No providers found. Try expanding the time window or checking the state code.</td></tr>';
+    document.getElementById('statusBar').textContent = `No results found for ${state}.`;
+    document.getElementById('statusBar').className = 'status error';
+  } else {
+    document.getElementById('resultsBody').innerHTML = raw.map(r => `
+      <tr>
+        <td><strong>${r.name}</strong></td>
+        <td>${r.credential || '—'}</td>
+        <td><span class="spec-tag">${r.specialty}</span></td>
+        <td>${r.city || '—'}</td>
+        <td>${r.zip || '—'}</td>
+        <td>${r.phone || '—'}</td>
+        <td>${fmtDate(r.enrolledDate)}</td>
+        <td>${r.days}</td>
+        <td>${badge(r.days)}</td>
+        <td style="font-size:11px;color:#999">${r.npi}</td>
+      </tr>`).join('');
+    document.getElementById('statusBar').textContent =
+      `${raw.length} providers found in ${state} · sorted by most recent enrollment`;
+    document.getElementById('statusBar').className = 'status done';
+    document.getElementById('exportBtn').disabled = false;
+  }
+
+  document.getElementById('progressBar').style.width = '100%';
+  btn.disabled = false;
+  btn.textContent = 'Search';
+}
+
+function exportCSV() {
+  if (!allData.length) return;
+  const headers = ['Name','Credential','Specialty','City','Zip','Phone','Enrolled Date','Days Since NPI','Status','NPI','Gender'];
+  const rows = allData.map(r => [
+    r.name, r.credential, r.specialty, r.city, r.zip, r.phone,
+    r.enrolledDate, r.days,
+    r.days<=30?'New (<30d)':r.days<=90?'Recent (30-90d)':r.days<=180?'6 months':'>6 months',
+    r.npi, r.gender
+  ]);
+  const csv = [headers, ...rows].map(row =>
+    row.map(v => `"${String(v||'').replace(/"/g,'""')}"`).join(',')
+  ).join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const state = document.getElementById('stateInput').value.toUpperCase();
+  const today = new Date().toISOString().slice(0,10);
+  a.href = url;
+  a.download = `NPI_Tracker_${state}_${today}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+document.getElementById('stateInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') runSearch();
+});
+</script>
+</body>
+</html>
