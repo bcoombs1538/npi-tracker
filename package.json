@@ -1,0 +1,8 @@
+{
+  "name": "npi-tracker-backend",
+  "version": "1.0.0",
+  "description": "NPI New Physician Tracker API",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=14" }
+}

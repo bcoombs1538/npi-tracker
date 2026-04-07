@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NPI New Physician Tracker</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; color: #1a1a2e; min-height: 100vh; }
+
+  .topbar { background: #1B2A4A; color: #fff; padding: 14px 28px; display: flex; align-items: center; justify-content: space-between; }
+  .topbar h1 { font-size: 17px; font-weight: 600; letter-spacing: 0.02em; }
+  .topbar span { font-size: 12px; opacity: 0.6; }
+
+  .controls { background: #fff; border-bottom: 1px solid #e2e6ed; padding: 14px 28px; display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; }
+  .ctrl { display: flex; flex-direction: column; gap: 4px; }
+  .ctrl label { font-size: 11px; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: 0.04em; }
+  .ctrl input, .ctrl select { font-size: 13px; padding: 7px 11px; border: 1px solid #d0d7e3; border-radius: 6px; background: #fff; color: #1a1a2e; height: 34px; outline: none; }
+  .ctrl input:focus, .ctrl select:focus { border-color: #2E86C1; box-shadow: 0 0 0 2px rgba(46,134,193,0.12); }
+  .ctrl input[type=text] { width: 80px; text-transform: uppercase; font-weight: 700; color: #1B2A4A; }
+
+  .search-btn { padding: 0 22px; height: 34px; background: #1B2A4A; color: #fff; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; align-self: flex-end; }
+  .search-btn:hover { background: #2E86C1; }
+  .search-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .export-btn { padding: 0 18px; height: 34px; background: #fff; color: #1B2A4A; border: 1px solid #1B2A4A; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; align-self: flex-end; }
+  .export-btn:hover { background: #f0f4fa; }
+  .export-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; padding: 16px 28px; }
+  .metric { background: #fff; border-radius: 8px; padding: 14px 16px; border: 1px solid #e8ecf2; }
+  .metric .mlabel { font-size: 11px; color: #888; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 6px; }
+  .metric .mval { font-size: 26px; font-weight: 700; color: #1B2A4A; line-height: 1; }
+  .metric .msub { font-size: 11px; color: #aaa; margin-top: 4px; }
+
+  .status { padding: 0 28px 8px; font-size: 12px; color: #888; min-height: 20px; }
+  .status.running { color: #2E86C1; font-weight: 500; }
+  .status.done { color: #27ae60; font-weight: 500; }
+  .status.error { color: #e74c3c; }
+
+  .progress { height: 3px; background: #e2e6ed; margin: 0 28px 4px; border-radius: 2px; overflow: hidden; }
+  .progress-bar { height: 100%; background: #2E86C1; width: 0%; transition: width 0.4s; border-radius: 2px; }
+
+  .table-wrap { margin: 0 28px 28px; background: #fff; border-radius: 8px; border: 1px solid #e2e6ed; overflow: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead tr { background: #1B2A4A; }
+  th { color: #fff; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; padding: 10px 12px; text-align: left; white-space: nowrap; }
+  td { padding: 9px 12px; border-bottom: 1px solid #f0f2f5; vertical-align: middle; white-space: nowrap; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #f8fafc; }
+
+  .badge { display: inline-block; padding: 3px 9px; border-radius: 99px; font-size: 11px; font-weight: 600; }
+  .badge-hot    { background: #D6EAF8; color: #1a5276; }
+  .badge-recent { background: #D5F5E3; color: #1e8449; }
+  .badge-6mo    { background: #FEF9E7; color: #9a7d0a; }
+  .badge-old    { background: #f5f5f5; color: #777; }
+
+  .empty { text-align: center; padding: 48px; color: #aaa; font-size: 14px; }
+  .spec-tag { display: inline-block; padding: 2px 7px; background: #eef2f8; border-radius: 4px; font-size: 11px; color: #445; }
+
+  .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid #ccc; border-top-color: #2E86C1; border-radius: 50%; animation: spin 0.7s linear infinite; margin-right: 6px; vertical-align: middle; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>NPI New Physician Tracker</h1>
+  <span>Live data · CMS NPPES Registry</span>
+</div>
+
+<div class="controls">
+  <div class="ctrl">
+    <label>State</label>
+    <input type="text" id="stateInput" value="UT" maxlength="2" />
+  </div>
+  <div class="ctrl">
+    <label>Days back</label>
+    <select id="daysSelect">
+      <option value="30">30 days</option>
+      <option value="90">90 days</option>
+      <option value="180" selected>180 days</option>
+      <option value="365">1 year</option>
+      <option value="730">2 years</option>
+    </select>
+  </div>
+  <div class="ctrl">
+    <label>Specialty</label>
+    <select id="specSelect">
+      <option value="all">All specialties</option>
+      <option value="Orthopaedic Surgery">Orthopedic Surgery</option>
+      <option value="Neurosurgery">Neurosurgery</option>
+      <option value="General Surgery">General Surgery</option>
+      <option value="Ophthalmology">Ophthalmology</option>
+      <option value="Otolaryngology">ENT</option>
+      <option value="Urology">Urology</option>
+      <option value="Gastroenterology">Gastroenterology</option>
+      <option value="Pain Medicine">Pain Management</option>
+      <option value="Plastic Surgery">Plastic Surgery</option>
+    </select>
+  </div>
+  <button class="search-btn" id="searchBtn" onclick="runSearch()">Search</button>
+  <button class="export-btn" id="exportBtn" onclick="exportCSV()" disabled>Export to Excel</button>
+</div>
+
+<div class="metrics">
+  <div class="metric"><div class="mlabel">Total found</div><div class="mval" id="mTotal">—</div><div class="msub" id="mSub">run a search</div></div>
+  <div class="metric"><div class="mlabel">New &lt;30 days</div><div class="mval" id="mNew">—</div><div class="msub">hot leads</div></div>
+  <div class="metric"><div class="mlabel">Recent 30–90d</div><div class="mval" id="mRecent">—</div><div class="msub">active outreach</div></div>
+  <div class="metric"><div class="mlabel">Specialties</div><div class="mval" id="mSpecs">—</div><div class="msub">in results</div></div>
+</div>
+
+<div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+<div class="status" id="statusBar">Enter a state and click Search.</div>
+
+<div class="table-wrap">
+  <table>
+    <thead><tr>
+      <th>Name</th><th>Credential</th><th>Specialty</th><th>City</th>
+      <th>Zip</th><th>Phone</th><th>Enrolled Date</th>
+      <th>Days Since NPI</th><th>Status</th><th>NPI</th>
+    </tr></thead>
+    <tbody id="resultsBody">
+      <tr><td colspan="10" class="empty">No data yet — run a search above.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<script>
+  // ← REPLACE THIS with your Render backend URL after deploying
+  const API_BASE = 'https://npi-tracker-api.onrender.com';
+
+  let allData = [];
+
+  function badge(days) {
+    if (days <= 30)  return '<span class="badge badge-hot">New &lt;30d</span>';
+    if (days <= 90)  return '<span class="badge badge-recent">30–90d</span>';
+    if (days <= 180) return '<span class="badge badge-6mo">6 months</span>';
+    return '<span class="badge badge-old">&gt;6mo</span>';
+  }
+
+  function fmtDate(s) {
+    if (!s) return '—';
+    return new Date(s).toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'});
+  }
+
+  async function runSearch() {
+    const state = document.getElementById('stateInput').value.trim().toUpperCase();
+    const days  = document.getElementById('daysSelect').value;
+    const spec  = document.getElementById('specSelect').value;
+
+    if (!state || state.length !== 2) {
+      setStatus('Please enter a valid 2-letter state code.', 'error');
+      return;
+    }
+
+    const btn = document.getElementById('searchBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>Searching…';
+    document.getElementById('exportBtn').disabled = true;
+    document.getElementById('resultsBody').innerHTML =
+      '<tr><td colspan="10" class="empty">Pulling live data from NPPES…</td></tr>';
+    document.getElementById('progressBar').style.width = '30%';
+    setStatus(`Querying NPPES for ${state}…`, 'running');
+
+    try {
+      const url = `${API_BASE}/search?state=${state}&days=${days}&specialty=${encodeURIComponent(spec)}`;
+      const r = await fetch(url);
+      if (!r.ok) throw new Error(`Server error ${r.status}`);
+      const data = await r.json();
+
+      document.getElementById('progressBar').style.width = '100%';
+      allData = data.results || [];
+
+      const newCount    = allData.filter(r => r.days <= 30).length;
+      const recentCount = allData.filter(r => r.days > 30 && r.days <= 90).length;
+      const specs       = new Set(allData.map(r => r.specialty)).size;
+
+      document.getElementById('mTotal').textContent  = allData.length;
+      document.getElementById('mSub').textContent    = `within ${days} days · ${state}`;
+      document.getElementById('mNew').textContent    = newCount;
+      document.getElementById('mRecent').textContent = recentCount;
+      document.getElementById('mSpecs').textContent  = specs;
+
+      if (allData.length === 0) {
+        document.getElementById('resultsBody').innerHTML =
+          '<tr><td colspan="10" class="empty">No providers found. Try a longer time window.</td></tr>';
+        setStatus(`No results for ${state}.`, 'error');
+      } else {
+        document.getElementById('resultsBody').innerHTML = allData.map(r => `
+          <tr>
+            <td><strong>${r.name||'—'}</strong></td>
+            <td>${r.credential||'—'}</td>
+            <td><span class="spec-tag">${r.specialty}</span></td>
+            <td>${r.city||'—'}</td>
+            <td>${r.zip||'—'}</td>
+            <td>${r.phone||'—'}</td>
+            <td>${fmtDate(r.enrolledDate)}</td>
+            <td>${r.days}</td>
+            <td>${badge(r.days)}</td>
+            <td style="font-size:11px;color:#999">${r.npi}</td>
+          </tr>`).join('');
+        setStatus(`${allData.length} providers found in ${state} · sorted by most recent enrollment`, 'done');
+        document.getElementById('exportBtn').disabled = false;
+      }
+    } catch(e) {
+      setStatus(`Error: ${e.message} — make sure the backend is running.`, 'error');
+      document.getElementById('resultsBody').innerHTML =
+        '<tr><td colspan="10" class="empty">Could not connect to server. See status bar above.</td></tr>';
+    }
+
+    btn.disabled = false;
+    btn.textContent = 'Search';
+  }
+
+  function setStatus(msg, cls) {
+    const el = document.getElementById('statusBar');
+    el.textContent = msg;
+    el.className = 'status ' + (cls||'');
+  }
+
+  function exportCSV() {
+    if (!allData.length) return;
+    const headers = ['Name','Credential','Specialty','City','Zip','Phone',
+                     'Enrolled Date','Days Since NPI','Status','NPI','Gender'];
+    const rows = allData.map(r => [
+      r.name, r.credential, r.specialty, r.city, r.zip, r.phone,
+      r.enrolledDate, r.days, r.bucket, r.npi, r.gender
+    ]);
+    const csv = [headers,...rows].map(row =>
+      row.map(v => `"${String(v||'').replace(/"/g,'""')}"`).join(',')
+    ).join('\n');
+    const blob = new Blob([csv], {type:'text/csv'});
+    const a = document.createElement('a');
+    const state = document.getElementById('stateInput').value.toUpperCase();
+    a.href = URL.createObjectURL(blob);
+    a.download = `NPI_Tracker_${state}_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+  }
+
+  document.getElementById('stateInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') runSearch();
+  });
+</script>
+</body>
+</html>
